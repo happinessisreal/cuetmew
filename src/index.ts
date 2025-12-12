@@ -1,4 +1,9 @@
-import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
 import { httpInstrumentationMiddleware } from "@hono/otel";
@@ -9,10 +14,17 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { Scalar } from "@scalar/hono-api-reference";
+import { Queue, Worker } from "bullmq";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { timeout } from "hono/timeout";
 import { rateLimiter } from "hono-rate-limiter";
+import { Redis } from "ioredis";
+
+// Extend Hono's context variable map to include requestId
+interface AppVariables {
+  requestId: string;
+}
 
 // Helper for optional URL that treats empty string as undefined
 const optionalUrl = z
@@ -46,6 +58,10 @@ const EnvSchema = z.object({
   DOWNLOAD_DELAY_MIN_MS: z.coerce.number().int().min(0).default(10000), // 10 seconds
   DOWNLOAD_DELAY_MAX_MS: z.coerce.number().int().min(0).default(200000), // 200 seconds
   DOWNLOAD_DELAY_ENABLED: z.coerce.boolean().default(true),
+  // Redis configuration
+  REDIS_URL: z.url().optional(),
+  // Presigned URL expiry
+  PRESIGNED_URL_EXPIRY_SECONDS: z.coerce.number().int().min(60).default(3600),
 });
 
 // Parse and validate environment
@@ -65,6 +81,68 @@ const s3Client = new S3Client({
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
 
+// Redis connection for BullMQ (optional - falls back to in-memory if not configured)
+let redisConnection: Redis | null = null;
+if (env.REDIS_URL) {
+  redisConnection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+}
+
+// Job status types
+type JobStatus = "queued" | "processing" | "completed" | "failed";
+
+interface JobResult {
+  file_id: number;
+  status: JobStatus;
+  progress: number;
+  downloadUrl: string | null;
+  size: number | null;
+  processingTimeMs: number | null;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// In-memory job store (fallback when Redis is not available)
+const inMemoryJobs = new Map<string, JobResult>();
+
+// Download queue and worker (only if Redis is configured)
+const QUEUE_NAME = "download-jobs";
+
+let downloadQueue: Queue | null = null;
+if (redisConnection) {
+  downloadQueue = new Queue(QUEUE_NAME, { connection: redisConnection });
+}
+
+// Helper to get job status from Redis or in-memory store
+const getJobStatus = async (jobId: string): Promise<JobResult | null> => {
+  if (redisConnection) {
+    const data = await redisConnection.get(`job:${jobId}`);
+    if (data) {
+      return JSON.parse(data) as JobResult;
+    }
+    return null;
+  }
+  return inMemoryJobs.get(jobId) ?? null;
+};
+
+// Helper to set job status
+const setJobStatus = async (
+  jobId: string,
+  status: JobResult,
+): Promise<void> => {
+  if (redisConnection) {
+    // Store for 24 hours
+    await redisConnection.set(
+      `job:${jobId}`,
+      JSON.stringify(status),
+      "EX",
+      86400,
+    );
+  } else {
+    inMemoryJobs.set(jobId, status);
+  }
+};
+
 // Initialize OpenTelemetry SDK
 const otelSDK = new NodeSDK({
   resource: resourceFromAttributes({
@@ -74,7 +152,7 @@ const otelSDK = new NodeSDK({
 });
 otelSDK.start();
 
-const app = new OpenAPIHono();
+const app = new OpenAPIHono<{ Variables: AppVariables }>();
 
 // Request ID middleware - adds unique ID to each request
 app.use(async (c, next) => {
@@ -252,6 +330,37 @@ const DownloadStartResponseSchema = z
   })
   .openapi("DownloadStartResponse");
 
+// Job status response schema (for polling)
+const JobStatusResponseSchema = z
+  .object({
+    jobId: z.string().openapi({ description: "Unique job identifier" }),
+    file_id: z.number().int(),
+    status: z
+      .enum(["queued", "processing", "completed", "failed"])
+      .openapi({ description: "Current job status" }),
+    progress: z
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .openapi({ description: "Progress percentage (0-100)" }),
+    downloadUrl: z.string().nullable().openapi({
+      description: "Presigned download URL (available when completed)",
+    }),
+    size: z
+      .number()
+      .int()
+      .nullable()
+      .openapi({ description: "File size in bytes" }),
+    processingTimeMs: z.number().int().nullable().openapi({
+      description: "Time taken to process (null if still processing)",
+    }),
+    message: z.string().openapi({ description: "Status message" }),
+    createdAt: z.string().openapi({ description: "Job creation timestamp" }),
+    updatedAt: z.string().openapi({ description: "Last update timestamp" }),
+  })
+  .openapi("JobStatusResponse");
+
 // Input sanitization for S3 keys - prevent path traversal
 const sanitizeS3Key = (fileId: number): string => {
   // Ensure fileId is a valid integer within bounds (already validated by Zod)
@@ -318,6 +427,147 @@ const checkS3Availability = async (
     };
   }
 };
+
+// Generate presigned S3 URL for downloading
+const generatePresignedUrl = async (s3Key: string): Promise<string | null> => {
+  if (!env.S3_BUCKET_NAME) {
+    // Mock mode - return a fake URL
+    return `https://storage.example.com/${s3Key}?token=${crypto.randomUUID()}`;
+  }
+
+  try {
+    const command = new GetObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: s3Key,
+    });
+    const url = await getSignedUrl(s3Client, command, {
+      expiresIn: env.PRESIGNED_URL_EXPIRY_SECONDS,
+    });
+    return url;
+  } catch (err) {
+    console.error("[S3] Failed to generate presigned URL:", err);
+    return null;
+  }
+};
+
+// Process a download job (used by worker)
+const processDownloadJob = async (
+  jobId: string,
+  fileId: number,
+): Promise<void> => {
+  const startTime = Date.now();
+
+  // Update status to processing
+  await setJobStatus(jobId, {
+    file_id: fileId,
+    status: "processing",
+    progress: 0,
+    downloadUrl: null,
+    size: null,
+    processingTimeMs: null,
+    message: "Processing download...",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  // Get random delay and log it
+  const delayMs = getRandomDelay();
+  const delaySec = (delayMs / 1000).toFixed(1);
+  const minDelaySec = (env.DOWNLOAD_DELAY_MIN_MS / 1000).toFixed(0);
+  const maxDelaySec = (env.DOWNLOAD_DELAY_MAX_MS / 1000).toFixed(0);
+  console.log(
+    `[Download Worker] Processing job=${jobId} file_id=${String(fileId)} | delay=${delaySec}s (range: ${minDelaySec}s-${maxDelaySec}s)`,
+  );
+
+  // Simulate progress updates during the delay
+  const progressIntervalMs = Math.max(1000, delayMs / 10);
+  let progress = 0;
+  const progressInterval = setInterval(() => {
+    progress = Math.min(progress + 10, 90);
+    void (async () => {
+      const currentStatus = await getJobStatus(jobId);
+      if (currentStatus?.status === "processing") {
+        await setJobStatus(jobId, {
+          ...currentStatus,
+          progress,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    })();
+  }, progressIntervalMs);
+
+  // Simulate long-running download process
+  await sleep(delayMs);
+  clearInterval(progressInterval);
+
+  // Check if file is available in S3
+  const s3Result = await checkS3Availability(fileId);
+  const processingTimeMs = Date.now() - startTime;
+
+  if (s3Result.available && s3Result.s3Key) {
+    // Generate presigned URL
+    const downloadUrl = await generatePresignedUrl(s3Result.s3Key);
+
+    await setJobStatus(jobId, {
+      file_id: fileId,
+      status: "completed",
+      progress: 100,
+      downloadUrl,
+      size: s3Result.size,
+      processingTimeMs,
+      message: `Download ready after ${(processingTimeMs / 1000).toFixed(1)} seconds`,
+      createdAt:
+        (await getJobStatus(jobId))?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(
+      `[Download Worker] Completed job=${jobId} file_id=${String(fileId)}, time=${String(processingTimeMs)}ms`,
+    );
+  } else {
+    await setJobStatus(jobId, {
+      file_id: fileId,
+      status: "failed",
+      progress: 100,
+      downloadUrl: null,
+      size: null,
+      processingTimeMs,
+      message: `File not found after ${(processingTimeMs / 1000).toFixed(1)} seconds`,
+      createdAt:
+        (await getJobStatus(jobId))?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(
+      `[Download Worker] Failed job=${jobId} file_id=${String(fileId)}, file not found`,
+    );
+  }
+};
+
+// Create BullMQ worker (only if Redis is configured)
+let downloadWorker: Worker | null = null;
+if (redisConnection) {
+  downloadWorker = new Worker(
+    QUEUE_NAME,
+    async (job) => {
+      const { jobId, fileId } = job.data as { jobId: string; fileId: number };
+      await processDownloadJob(jobId, fileId);
+    },
+    {
+      connection: redisConnection,
+      concurrency: 5, // Process up to 5 jobs concurrently
+    },
+  );
+
+  // Worker event handlers
+  downloadWorker.on("completed", (job) => {
+    console.log(`[BullMQ] Job ${String(job.id)} completed`);
+  });
+
+  downloadWorker.on("failed", (job, err) => {
+    console.error(`[BullMQ] Job ${String(job?.id)} failed:`, err);
+  });
+}
 
 // Random delay helper for simulating long-running downloads
 const getRandomDelay = (): number => {
@@ -488,9 +738,45 @@ const downloadCheckRoute = createRoute({
   },
 });
 
-app.openapi(downloadInitiateRoute, (c) => {
+app.openapi(downloadInitiateRoute, async (c) => {
   const { file_ids } = c.req.valid("json");
   const jobId = crypto.randomUUID();
+
+  // For now, we only support single file downloads via the async queue
+  // The first file_id will be processed
+  const fileId = file_ids[0];
+
+  // Create initial job status
+  const now = new Date().toISOString();
+  await setJobStatus(jobId, {
+    file_id: fileId,
+    status: "queued",
+    progress: 0,
+    downloadUrl: null,
+    size: null,
+    processingTimeMs: null,
+    message: "Job queued for processing",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Queue the job (if Redis is available) or process in background
+  if (downloadQueue) {
+    await downloadQueue.add("download", { jobId, fileId });
+    console.log(
+      `[Download] Queued job=${jobId} file_id=${String(fileId)} to BullMQ`,
+    );
+  } else {
+    // Fallback: process in background without blocking
+    console.log(
+      `[Download] Processing job=${jobId} file_id=${String(fileId)} in-memory (no Redis)`,
+    );
+    // Don't await - let it run in background
+    processDownloadJob(jobId, fileId).catch((err: unknown) => {
+      console.error(`[Download] Background job failed:`, err);
+    });
+  }
+
   return c.json(
     {
       jobId,
@@ -517,6 +803,75 @@ app.openapi(downloadCheckRoute, async (c) => {
     {
       file_id,
       ...s3Result,
+    },
+    200,
+  );
+});
+
+// Job Status Route - for polling job progress
+const jobStatusRoute = createRoute({
+  method: "get",
+  path: "/v1/download/status/:jobId",
+  tags: ["Download"],
+  summary: "Get download job status (polling)",
+  description: `Poll this endpoint to check the status of a download job.
+    Returns progress percentage, and when complete, provides a presigned S3 URL.
+    Recommended polling interval: 2-5 seconds.`,
+  request: {
+    params: z.object({
+      jobId: z
+        .uuid()
+        .openapi({ description: "Job ID returned from /v1/download/initiate" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Job status",
+      content: {
+        "application/json": {
+          schema: JobStatusResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: "Job not found",
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Internal server error",
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(jobStatusRoute, async (c) => {
+  const { jobId } = c.req.valid("param");
+
+  const jobStatus = await getJobStatus(jobId);
+
+  if (!jobStatus) {
+    return c.json(
+      {
+        error: "Not Found",
+        message: `Job ${jobId} not found`,
+        requestId: c.get("requestId") as string | undefined,
+      },
+      404,
+    );
+  }
+
+  return c.json(
+    {
+      jobId,
+      ...jobStatus,
     },
     200,
   );
@@ -643,20 +998,42 @@ const gracefulShutdown = (server: ServerType) => (signal: string) => {
   server.close(() => {
     console.log("HTTP server closed");
 
-    // Shutdown OpenTelemetry to flush traces
-    otelSDK
-      .shutdown()
-      .then(() => {
-        console.log("OpenTelemetry SDK shut down");
-      })
+    // Close BullMQ worker and queue
+    const closeQueue = async () => {
+      if (downloadWorker) {
+        await downloadWorker.close();
+        console.log("BullMQ worker closed");
+      }
+      if (downloadQueue) {
+        await downloadQueue.close();
+        console.log("BullMQ queue closed");
+      }
+      if (redisConnection) {
+        await redisConnection.quit();
+        console.log("Redis connection closed");
+      }
+    };
+
+    closeQueue()
       .catch((err: unknown) => {
-        console.error("Error shutting down OpenTelemetry:", err);
+        console.error("Error closing queue:", err);
       })
       .finally(() => {
-        // Destroy S3 client
-        s3Client.destroy();
-        console.log("S3 client destroyed");
-        console.log("Graceful shutdown completed");
+        // Shutdown OpenTelemetry to flush traces
+        otelSDK
+          .shutdown()
+          .then(() => {
+            console.log("OpenTelemetry SDK shut down");
+          })
+          .catch((err: unknown) => {
+            console.error("Error shutting down OpenTelemetry:", err);
+          })
+          .finally(() => {
+            // Destroy S3 client
+            s3Client.destroy();
+            console.log("S3 client destroyed");
+            console.log("Graceful shutdown completed");
+          });
       });
   });
 };

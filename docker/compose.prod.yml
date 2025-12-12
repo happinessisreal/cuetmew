@@ -16,10 +16,22 @@ services:
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET_NAME=downloads
       - S3_FORCE_PATH_STYLE=true
+      - REDIS_URL=redis://delineate-redis:6379
     restart: unless-stopped
     depends_on:
       delineate-minio-init:
         condition: service_completed_successfully
+      delineate-redis:
+        condition: service_healthy
+
+  delineate-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   delineate-minio:
     image: minio/minio:latest
