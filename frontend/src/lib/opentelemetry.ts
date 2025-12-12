@@ -1,4 +1,7 @@
-import { WebTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-web";
+import {
+  WebTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-web";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { ZoneContextManager } from "@opentelemetry/context-zone";
 import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
@@ -51,7 +54,7 @@ export function getCurrentTraceId(): string | null {
 
 export function createSpan<T>(
   name: string,
-  fn: () => T | Promise<T>
+  fn: () => T | Promise<T>,
 ): T | Promise<T> {
   const tracer = getTracer();
   return tracer.startActiveSpan(name, async (span) => {

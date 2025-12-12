@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { getCurrentTraceId, getTracer } from "../lib/opentelemetry";
 import "./TraceViewer.css";
 
-const JAEGER_UI_URL = import.meta.env.VITE_JAEGER_UI_URL || "http://localhost:16686";
+const JAEGER_UI_URL =
+  import.meta.env.VITE_JAEGER_UI_URL || "http://localhost:16686";
 
 export function TraceViewer() {
   const [currentTraceId, setCurrentTraceId] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function TraceViewer() {
     const span = tracer.startSpan("user-interaction.test-span");
     span.setAttribute("user.action", "test-button-click");
     span.setAttribute("timestamp", new Date().toISOString());
-    
+
     // Keep span active briefly to capture trace ID
     setTimeout(() => {
       const traceId = span.spanContext().traceId;
@@ -95,7 +96,9 @@ export function TraceViewer() {
           >
             {JAEGER_UI_URL}
           </a>{" "}
-          to view traces. Run <code>docker compose -f docker/compose.dev.yml up</code> to start all services.
+          to view traces. Run{" "}
+          <code>docker compose -f docker/compose.dev.yml up</code> to start all
+          services.
         </div>
       </div>
     </div>

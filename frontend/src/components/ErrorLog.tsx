@@ -45,9 +45,13 @@ export function ErrorLog() {
     try {
       const result = await triggerBackendSentryTest();
       // This intentionally returns an error response
-      addError("Backend Sentry Test", result.message || "Backend error triggered for Sentry testing");
+      addError(
+        "Backend Sentry Test",
+        result.message || "Backend error triggered for Sentry testing",
+      );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Backend Sentry test failed";
+      const message =
+        err instanceof Error ? err.message : "Backend Sentry test failed";
       Sentry.captureException(err, {
         tags: { component: "ErrorLog", action: "backendSentryTest" },
         extra: { traceId: getCurrentTraceId() },
@@ -55,8 +59,6 @@ export function ErrorLog() {
       addError("Backend Sentry Test", message);
     }
   };
-
-
 
   const clearErrors = () => {
     setErrors([]);
@@ -109,7 +111,8 @@ export function ErrorLog() {
         <div className="error-log__list">
           {errors.length === 0 ? (
             <div className="error-log__empty">
-              No errors captured yet. Click "Trigger Test Error" to test Sentry integration.
+              No errors captured yet. Click "Trigger Test Error" to test Sentry
+              integration.
             </div>
           ) : (
             errors.map((error) => (

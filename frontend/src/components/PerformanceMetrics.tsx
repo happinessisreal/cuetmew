@@ -35,11 +35,15 @@ export function PerformanceMetrics() {
       <h2>📈 Performance Metrics</h2>
       <div className="performance-metrics__grid">
         <div className="performance-metrics__item">
-          <div className="performance-metrics__value">{metrics.avgResponseTime}ms</div>
+          <div className="performance-metrics__value">
+            {metrics.avgResponseTime}ms
+          </div>
           <div className="performance-metrics__label">Avg Response</div>
         </div>
         <div className="performance-metrics__item">
-          <div className="performance-metrics__value">{metrics.successRate}%</div>
+          <div className="performance-metrics__value">
+            {metrics.successRate}%
+          </div>
           <div className="performance-metrics__label">Success Rate</div>
         </div>
         <div className="performance-metrics__item">

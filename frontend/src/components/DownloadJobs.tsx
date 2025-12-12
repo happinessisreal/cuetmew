@@ -14,7 +14,9 @@ export function DownloadJobs() {
     mutationFn: async (fileId: number) => {
       return createSpan("initiateDownload", async () => {
         const traceId = getCurrentTraceId();
-        console.log(`[Download] Initiating download for file ${fileId}, trace: ${traceId}`);
+        console.log(
+          `[Download] Initiating download for file ${fileId}, trace: ${traceId}`,
+        );
         return initiateDownload(fileId);
       });
     },
@@ -30,7 +32,8 @@ export function DownloadJobs() {
       setError(null);
     },
     onError: (err) => {
-      const message = err instanceof Error ? err.message : "Failed to initiate download";
+      const message =
+        err instanceof Error ? err.message : "Failed to initiate download";
       setError(message);
       Sentry.captureException(err, {
         tags: { component: "DownloadJobs", action: "initiateDownload" },
@@ -67,13 +70,15 @@ export function DownloadJobs() {
             console.error(`Failed to fetch status for job ${jobId}:`, err);
             return null;
           }
-        })
+        }),
       );
 
       // Update jobs with new status
       setJobs((prev) =>
         prev.map((job) => {
-          const update = updates.find((u) => u?.polledJobId === job.jobId || u?.jobId === job.jobId);
+          const update = updates.find(
+            (u) => u?.polledJobId === job.jobId || u?.jobId === job.jobId,
+          );
           if (update) {
             return {
               ...job,
@@ -85,7 +90,7 @@ export function DownloadJobs() {
             };
           }
           return job;
-        })
+        }),
       );
 
       return updates;
@@ -128,8 +133,12 @@ export function DownloadJobs() {
           jobs.map((job) => (
             <div key={job.jobId} className="download-job">
               <div className="download-job__info">
-                <div className="download-job__id">Job: {job.jobId.slice(0, 8)}...</div>
-                <div className="download-job__file-id">File ID: {job.fileId}</div>
+                <div className="download-job__id">
+                  Job: {job.jobId.slice(0, 8)}...
+                </div>
+                <div className="download-job__file-id">
+                  File ID: {job.fileId}
+                </div>
                 {job.message && (
                   <div className="download-job__message">{job.message}</div>
                 )}
@@ -147,8 +156,11 @@ export function DownloadJobs() {
                 </div>
               )}
 
-              <span className={`download-job__status download-job__status--${job.status}`}>
-                {job.status} {job.progress !== undefined ? `(${job.progress}%)` : ""}
+              <span
+                className={`download-job__status download-job__status--${job.status}`}
+              >
+                {job.status}{" "}
+                {job.progress !== undefined ? `(${job.progress}%)` : ""}
               </span>
 
               {job.status === "completed" && job.downloadUrl && (

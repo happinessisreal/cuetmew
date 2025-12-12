@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     const traceId = getCurrentTraceId();
-    
+
     // Capture error with Sentry including trace context
     Sentry.withScope((scope) => {
       scope.setTag("component", "ErrorBoundary");
@@ -61,9 +61,12 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="error-boundary-fallback">
           <div className="error-boundary-fallback__content">
             <div className="error-boundary-fallback__icon">💥</div>
-            <h1 className="error-boundary-fallback__title">Something went wrong</h1>
+            <h1 className="error-boundary-fallback__title">
+              Something went wrong
+            </h1>
             <p className="error-boundary-fallback__message">
-              An unexpected error occurred. The error has been reported to our monitoring system.
+              An unexpected error occurred. The error has been reported to our
+              monitoring system.
             </p>
 
             <div className="error-boundary-fallback__details">

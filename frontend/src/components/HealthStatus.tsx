@@ -10,7 +10,8 @@ export function HealthStatus() {
   });
 
   const getIndicatorClass = () => {
-    if (isLoading) return "health-status__indicator health-status__indicator--loading";
+    if (isLoading)
+      return "health-status__indicator health-status__indicator--loading";
     if (isError || data?.status !== "healthy")
       return "health-status__indicator health-status__indicator--unhealthy";
     return "health-status__indicator health-status__indicator--healthy";
@@ -32,13 +33,17 @@ export function HealthStatus() {
           <div className="health-status__detail">
             <div className="health-status__detail-label">Status</div>
             <div className="health-status__detail-value">
-              {isLoading ? "Checking..." : data?.status?.toUpperCase() || "UNKNOWN"}
+              {isLoading
+                ? "Checking..."
+                : data?.status?.toUpperCase() || "UNKNOWN"}
             </div>
           </div>
           <div className="health-status__detail">
             <div className="health-status__detail-label">Storage</div>
             <div className="health-status__detail-value">
-              {isLoading ? "..." : data?.checks?.storage?.toUpperCase() || "N/A"}
+              {isLoading
+                ? "..."
+                : data?.checks?.storage?.toUpperCase() || "N/A"}
             </div>
           </div>
           <div className="health-status__detail">
@@ -47,8 +52,8 @@ export function HealthStatus() {
               {isLoading
                 ? "..."
                 : dataUpdatedAt
-                ? new Date(dataUpdatedAt).toLocaleTimeString()
-                : "N/A"}
+                  ? new Date(dataUpdatedAt).toLocaleTimeString()
+                  : "N/A"}
             </div>
           </div>
         </div>

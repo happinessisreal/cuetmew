@@ -1,5 +1,4 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export interface HealthResponse {
   status: string;
@@ -48,13 +47,13 @@ export async function fetchHealth(): Promise<HealthResponse> {
 }
 
 export async function initiateDownload(
-  fileId: number
+  fileId: number,
 ): Promise<DownloadInitiateResponse> {
   // file_id must be between 10000 and 100000000
   if (fileId < 10000 || fileId > 100000000) {
     throw new Error("File ID must be between 10,000 and 100,000,000");
   }
-  
+
   const response = await fetch(`${API_BASE_URL}/v1/download/initiate`, {
     method: "POST",
     headers: {
@@ -65,18 +64,24 @@ export async function initiateDownload(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Download initiation failed: ${response.status}`);
+    throw new Error(
+      error.message || `Download initiation failed: ${response.status}`,
+    );
   }
 
   return response.json();
 }
 
-export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> {
+export async function fetchJobStatus(
+  jobId: string,
+): Promise<JobStatusResponse> {
   const response = await fetch(`${API_BASE_URL}/v1/download/status/${jobId}`);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Job status fetch failed: ${response.status}`);
+    throw new Error(
+      error.message || `Job status fetch failed: ${response.status}`,
+    );
   }
 
   return response.json();
@@ -86,14 +91,20 @@ export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> 
  * Trigger a test error in the backend to verify Sentry integration.
  * This calls the /v1/download/check endpoint with sentry_test=true.
  */
-export async function triggerBackendSentryTest(): Promise<{ error: string; message: string }> {
-  const response = await fetch(`${API_BASE_URL}/v1/download/check?sentry_test=true`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+export async function triggerBackendSentryTest(): Promise<{
+  error: string;
+  message: string;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/v1/download/check?sentry_test=true`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ file_id: 70000 }),
     },
-    body: JSON.stringify({ file_id: 70000 }),
-  });
+  );
 
   // This endpoint intentionally returns 500 for testing
   const data = await response.json();
