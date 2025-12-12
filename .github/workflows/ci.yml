@@ -69,7 +69,7 @@ jobs:
 
   build:
     name: Build Docker Image
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: test
     steps:
       - name: Checkout
@@ -90,7 +90,7 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -106,8 +106,24 @@ jobs:
             cd ~/cuetmew
             git fetch origin main
             git reset --hard origin/main
-            echo "${{ secrets.PRODUCTION_ENV }}" > .env
             docker compose -f docker/compose.prod.yml up -d --build
             echo "Deployment complete! Checking health..."
             sleep 10
             curl -f http://localhost:3000/health || echo "Health check failed"
+
+  notify:
+    name: Discord Notification
+    runs-on: ubuntu-24.04
+    needs: [lint, test, build]
+    if: always()
+    steps:
+      - name: Send Discord notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ needs.build.result }}
+          title: "CI Pipeline"
+          description: |
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** \`${{ github.sha }}\`
