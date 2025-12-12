@@ -28,6 +28,21 @@ services:
       delineate-redis:
         condition: service_healthy
 
+  delineate-frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend/src:/app/src
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3000
+      - VITE_OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+      - VITE_JAEGER_UI_URL=http://localhost:16686
+    depends_on:
+      - delineate-app
+
   delineate-jaeger:
     image: jaegertracing/all-in-one:latest
     ports:

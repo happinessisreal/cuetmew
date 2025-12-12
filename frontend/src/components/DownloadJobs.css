@@ -1,0 +1,174 @@
+.download-jobs {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.download-jobs h2 {
+  margin: 0 0 1rem 0;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.download-jobs__form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.download-jobs__input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #0f0f1a;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.download-jobs__input:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.download-jobs__button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.download-jobs__button:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.download-jobs__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.download-jobs__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.download-jobs__empty {
+  color: #666;
+  text-align: center;
+  padding: 2rem;
+}
+
+.download-job {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.download-job__info {
+  flex: 1;
+}
+
+.download-job__id {
+  color: #888;
+  font-size: 0.75rem;
+  font-family: monospace;
+  margin-bottom: 0.25rem;
+}
+
+.download-job__file-id {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.download-job__status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.download-job__status--queued {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.download-job__status--processing {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+.download-job__status--completed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.download-job__status--failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.download-job__progress {
+  width: 100px;
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.download-job__progress-bar {
+  height: 100%;
+  background: #6366f1;
+  transition: width 0.3s ease;
+}
+
+.download-job__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.download-job__download-link {
+  padding: 0.5rem 1rem;
+  background: #10b981;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.download-job__download-link:hover {
+  background: #059669;
+}
+
+.download-job__error {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.download-job__message {
+  color: #888;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.download-jobs__error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}

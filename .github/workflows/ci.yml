@@ -126,4 +126,4 @@ jobs:
           description: |
             **Repository:** ${{ github.repository }}
             **Branch:** ${{ github.ref_name }}
-            **Commit:** \`${{ github.sha }}\`
+            **Commit:** `${{ github.sha }}`

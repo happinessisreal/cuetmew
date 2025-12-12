@@ -1,0 +1,87 @@
+.error-boundary-fallback {
+  min-height: 100vh;
+  background: #0f0f1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.error-boundary-fallback__content {
+  max-width: 500px;
+  text-align: center;
+}
+
+.error-boundary-fallback__icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.error-boundary-fallback__title {
+  color: #ef4444;
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.error-boundary-fallback__message {
+  color: #888;
+  margin: 0 0 1.5rem;
+}
+
+.error-boundary-fallback__details {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.error-boundary-fallback__error {
+  color: #ef4444;
+  font-family: monospace;
+  font-size: 0.875rem;
+  word-break: break-word;
+  margin: 0;
+}
+
+.error-boundary-fallback__trace {
+  color: #6366f1;
+  font-family: monospace;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.error-boundary-fallback__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.error-boundary-fallback__button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-boundary-fallback__button--primary {
+  background: #6366f1;
+  color: #fff;
+}
+
+.error-boundary-fallback__button--primary:hover {
+  background: #4f46e5;
+}
+
+.error-boundary-fallback__button--secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.error-boundary-fallback__button--secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
