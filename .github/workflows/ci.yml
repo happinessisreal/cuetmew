@@ -106,6 +106,7 @@ jobs:
             cd ~/cuetmew
             git fetch origin main
             git reset --hard origin/main
+            echo "${{ secrets.PRODUCTION_ENV }}" > .env
             docker compose -f docker/compose.prod.yml up -d --build
             echo "Deployment complete! Checking health..."
             sleep 10
