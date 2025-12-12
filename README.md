@@ -1,5 +1,7 @@
 # Delineate Hackathon Challenge - CUET Fest 2025
 
+[![CI](https://github.com/happinessisreal/cuetmew/actions/workflows/ci.yml/badge.svg)](https://github.com/happinessisreal/cuetmew/actions/workflows/ci.yml)
+
 ## The Scenario
 
 This microservice simulates a **real-world file download system** where processing times vary significantly:
@@ -557,6 +559,66 @@ npm run docker:prod  # Start with Docker (production)
 - Input validation with Zod schemas
 - Path traversal prevention for S3 keys
 - Graceful shutdown handling
+
+---
+
+## CI/CD Pipeline
+
+[![CI](https://github.com/happinessisreal/cuetmew/actions/workflows/ci.yml/badge.svg)](https://github.com/happinessisreal/cuetmew/actions/workflows/ci.yml)
+
+This project uses **GitHub Actions** for continuous integration and delivery.
+
+### Pipeline Stages
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│    Lint     │───▶│    Test     │───▶│    Build    │
+│  (ESLint,   │    │   (E2E)     │    │  (Docker)   │
+│  Prettier)  │    │             │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘
+```
+
+| Stage      | Description                           | Command                |
+| ---------- | ------------------------------------- | ---------------------- |
+| **Lint**   | Runs ESLint and Prettier format check | `npm run lint`         |
+| **Format** | Checks code formatting                | `npm run format:check` |
+| **Test**   | Runs E2E tests                        | `npm run test:e2e`     |
+| **Build**  | Builds production Docker image        | `docker build`         |
+
+### Triggers
+
+The pipeline runs automatically on:
+
+- ✅ Push to `main` or `master` branch
+- ✅ Pull requests targeting `main` or `master`
+
+### For Contributors
+
+Before pushing your code, run these commands locally to ensure CI will pass:
+
+```bash
+# 1. Check linting
+npm run lint
+
+# 2. Check formatting
+npm run format:check
+
+# 3. Run E2E tests
+npm run test:e2e
+
+# Fix issues automatically (if any)
+npm run lint:fix
+npm run format
+```
+
+### Caching
+
+The pipeline uses:
+
+- **npm cache** - Speeds up dependency installation
+- **Docker layer cache** - Speeds up Docker image builds
+
+---
 
 ## License
 
