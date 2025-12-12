@@ -72,6 +72,7 @@ This document describes the architecture for handling long-running file download
 ### Data Flow Diagram
 
 **Fast Download Flow (< 30s):**
+
 ```
 ┌────────┐     POST /initiate     ┌─────────┐     Queue Job     ┌─────────┐
 │ Client │ ──────────────────────▶│   API   │ ─────────────────▶│  Redis  │
@@ -92,6 +93,7 @@ This document describes the architecture for handling long-running file download
 ```
 
 **Slow Download Flow (30-120s) - Handles Timeout Gracefully:**
+
 ```
 ┌────────┐     POST /initiate     ┌─────────┐     Queue Job     ┌─────────┐
 │ Client │ ──────────────────────▶│   API   │ ─────────────────▶│  Redis  │
@@ -108,8 +110,8 @@ This document describes the architecture for handling long-running file download
      │   │  (wait 8s + jitter)                                      │
      │   │  GET /status/:jobId ──▶ {progress: 100%, downloadUrl}    │
      │   └──────────────────────────────────────────────────────────┘
-     │                                                                
-     │         GET downloadUrl (presigned S3 URL)                     
+     │
+     │         GET downloadUrl (presigned S3 URL)
      │ ──────────────────────────────────────────────────────────────▶
      │ ◀───────────────────── File Content ──────────────────────────
      ▼                                                           ┌─────────┐
@@ -249,13 +251,13 @@ Value:  JSON string
 
 **Why Redis?**
 
-| Feature | Benefit |
-|---------|---------|
-| In-memory | < 1ms read/write latency |
-| TTL support | Automatic job cleanup after 24h |
-| BullMQ compatible | Native integration with job queue |
-| Horizontal scaling | Redis Cluster for high availability |
-| Cost | Low - single Redis instance handles millions of jobs |
+| Feature            | Benefit                                              |
+| ------------------ | ---------------------------------------------------- |
+| In-memory          | < 1ms read/write latency                             |
+| TTL support        | Automatic job cleanup after 24h                      |
+| BullMQ compatible  | Native integration with job queue                    |
+| Horizontal scaling | Redis Cluster for high availability                  |
+| Cost               | Low - single Redis instance handles millions of jobs |
 
 ### 3.3 Background Job Processing
 
@@ -333,8 +335,11 @@ const downloadQueue = new Queue("download-jobs", {
 
 // Worker error handling
 downloadWorker.on("failed", async (job, err) => {
-  console.error(`Job ${job?.id} failed after ${job?.attemptsMade} attempts:`, err);
-  
+  console.error(
+    `Job ${job?.id} failed after ${job?.attemptsMade} attempts:`,
+    err,
+  );
+
   // Update job status in Redis
   if (job?.data?.jobId) {
     await redisConnection.set(
@@ -346,7 +351,7 @@ downloadWorker.on("failed", async (job, err) => {
         updatedAt: new Date().toISOString(),
       }),
       "EX",
-      86400
+      86400,
     );
   }
 });
@@ -361,24 +366,24 @@ process.on("SIGTERM", async () => {
 
 **Error Scenarios Handled:**
 
-| Error Type | Handling Strategy |
-|------------|-------------------|
-| S3 connection failure | Retry 3 times with exponential backoff |
-| File not found | Fail immediately, no retry |
-| Redis connection failure | Worker crashes, Docker restarts |
-| Worker process crash | BullMQ requeues incomplete jobs |
+| Error Type               | Handling Strategy                      |
+| ------------------------ | -------------------------------------- |
+| S3 connection failure    | Retry 3 times with exponential backoff |
+| File not found           | Fail immediately, no retry             |
+| Redis connection failure | Worker crashes, Docker restarts        |
+| Worker process crash     | BullMQ requeues incomplete jobs        |
 
 ### 3.5 Timeout Configuration at Each Layer
 
-| Layer | Setting | Value | Justification |
-|-------|---------|-------|---------------|
-| **Cloudflare** | Proxy timeout | 100s (default) | N/A - polling requests complete in < 100ms |
-| **nginx** | proxy_read_timeout | 30s | Status polling is fast, no long connections |
-| **Hono API** | REQUEST_TIMEOUT_MS | 30000 (30s) | Safety limit for request handlers |
-| **BullMQ Worker** | Job timeout | None | Jobs run until completion (10-120s) |
-| **Presigned URL** | PRESIGNED_URL_EXPIRY_SECONDS | 3600 (1 hour) | User has 1 hour to download |
-| **Redis job TTL** | Expiry | 86400 (24 hours) | Jobs cleaned up after 24h |
-| **Client polling** | Backoff max | 15000ms | Cap polling at 15s intervals |
+| Layer              | Setting                      | Value            | Justification                               |
+| ------------------ | ---------------------------- | ---------------- | ------------------------------------------- |
+| **Cloudflare**     | Proxy timeout                | 100s (default)   | N/A - polling requests complete in < 100ms  |
+| **nginx**          | proxy_read_timeout           | 30s              | Status polling is fast, no long connections |
+| **Hono API**       | REQUEST_TIMEOUT_MS           | 30000 (30s)      | Safety limit for request handlers           |
+| **BullMQ Worker**  | Job timeout                  | None             | Jobs run until completion (10-120s)         |
+| **Presigned URL**  | PRESIGNED_URL_EXPIRY_SECONDS | 3600 (1 hour)    | User has 1 hour to download                 |
+| **Redis job TTL**  | Expiry                       | 86400 (24 hours) | Jobs cleaned up after 24h                   |
+| **Client polling** | Backoff max                  | 15000ms          | Cap polling at 15s intervals                |
 
 ---
 
@@ -424,15 +429,15 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Connection reuse
         proxy_set_header Connection "";
-        
+
         # Short timeouts (polling is fast)
         proxy_connect_timeout 10s;
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
-        
+
         # Disable buffering for real-time status updates
         proxy_buffering off;
     }
@@ -449,7 +454,7 @@ server {
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        
+
         # SSE-specific settings
         proxy_buffering off;
         proxy_cache off;
@@ -481,7 +486,7 @@ LoadBalancer:
   Properties:
     LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
-        Value: "60"  # Default is fine for polling
+        Value: "60" # Default is fine for polling
 ```
 
 ---
@@ -498,11 +503,11 @@ async function initiateDownload(fileIds: number[]): Promise<{ jobId: string }> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_ids: fileIds }),
   });
-  
+
   if (!response.ok) {
     throw new Error(`Failed to initiate download: ${response.status}`);
   }
-  
+
   return response.json();
 }
 ```
@@ -565,8 +570,10 @@ function useDownloadWithBackoff() {
           headers["If-None-Match"] = etagRef.current;
         }
 
-        const response = await fetch(`/v1/download/status/${jobId}`, { headers });
-        
+        const response = await fetch(`/v1/download/status/${jobId}`, {
+          headers,
+        });
+
         const newEtag = response.headers.get("ETag");
         if (newEtag) etagRef.current = newEtag;
 
@@ -646,8 +653,13 @@ function DownloadButton({ fileId }: { fileId: number }) {
   if (status?.status === "processing" || status?.status === "queued") {
     return (
       <div className="progress">
-        <div className="progress-bar" style={{ width: `${status.progress}%` }} />
-        <span>{status.progress}% - {status.message}</span>
+        <div
+          className="progress-bar"
+          style={{ width: `${status.progress}%` }}
+        />
+        <span>
+          {status.progress}% - {status.message}
+        </span>
       </div>
     );
   }
@@ -660,11 +672,7 @@ function DownloadButton({ fileId }: { fileId: number }) {
     );
   }
 
-  return (
-    <button onClick={() => startDownload([fileId])}>
-      Download File
-    </button>
-  );
+  return <button onClick={() => startDownload([fileId])}>Download File</button>;
 }
 ```
 
@@ -707,14 +715,16 @@ function useMultipleDownloads() {
       body: JSON.stringify({ file_ids: [fileId] }),
     });
     const { jobId } = await response.json();
-    
-    setDownloads(prev => new Map(prev).set(jobId, {
-      jobId,
-      status: "queued",
-      progress: 0,
-      downloadUrl: null,
-      message: "Queued",
-    }));
+
+    setDownloads((prev) =>
+      new Map(prev).set(jobId, {
+        jobId,
+        status: "queued",
+        progress: 0,
+        downloadUrl: null,
+        message: "Queued",
+      }),
+    );
 
     // Start polling for this specific job
     pollJob(jobId);
@@ -735,8 +745,8 @@ function DownloadQueue() {
     <div>
       <button onClick={() => startDownload(70001)}>Download File 1</button>
       <button onClick={() => startDownload(70002)}>Download File 2</button>
-      
-      {downloads.map(d => (
+
+      {downloads.map((d) => (
         <div key={d.jobId}>
           Job {d.jobId}: {d.status} ({d.progress}%)
         </div>
@@ -752,11 +762,11 @@ function DownloadQueue() {
 
 ### Cost Implications
 
-| Component | Cost Model | Estimated Cost |
-|-----------|------------|----------------|
-| Redis | Memory-based | ~$15/month (1GB) |
-| BullMQ | Open source | Free |
-| MinIO | Self-hosted | Infrastructure cost only |
+| Component         | Cost Model            | Estimated Cost                  |
+| ----------------- | --------------------- | ------------------------------- |
+| Redis             | Memory-based          | ~$15/month (1GB)                |
+| BullMQ            | Open source           | Free                            |
+| MinIO             | Self-hosted           | Infrastructure cost only        |
 | S3 (if using AWS) | Per request + storage | ~$0.023/GB + $0.005/1K requests |
 
 ### Scalability
@@ -775,15 +785,15 @@ function DownloadQueue() {
 
 ## Summary
 
-| Component       | Technology            | Purpose                          |
-| --------------- | --------------------- | -------------------------------- |
-| API Framework   | Hono (Node.js)        | HTTP endpoints, request handling |
-| Job Queue       | BullMQ                | Async job processing             |
-| State Storage   | Redis                 | Job status, progress tracking    |
-| Object Storage  | MinIO (S3-compatible) | File storage                     |
-| URL Generation  | AWS SDK presigner     | Secure, expiring download URLs   |
-| Client Polling  | Backoff + Jitter      | Efficient status updates         |
-| Response Cache  | ETags + 304           | Bandwidth optimization           |
+| Component      | Technology            | Purpose                          |
+| -------------- | --------------------- | -------------------------------- |
+| API Framework  | Hono (Node.js)        | HTTP endpoints, request handling |
+| Job Queue      | BullMQ                | Async job processing             |
+| State Storage  | Redis                 | Job status, progress tracking    |
+| Object Storage | MinIO (S3-compatible) | File storage                     |
+| URL Generation | AWS SDK presigner     | Secure, expiring download URLs   |
+| Client Polling | Backoff + Jitter      | Efficient status updates         |
+| Response Cache | ETags + 304           | Bandwidth optimization           |
 
 **Key Benefits:**
 
