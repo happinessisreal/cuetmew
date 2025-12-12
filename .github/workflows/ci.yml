@@ -90,7 +90,7 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    runs-on: ubuntu-22.04 LTS
+    runs-on: self-hosted
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
